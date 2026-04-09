@@ -18,11 +18,6 @@ This project is a physical arcade-style basketball machine with moving hoops, ba
 - Motorized hoop movement on linear rail
 - Different game modes
 
-## Repository Structure
-- `docs/` - planning notes, checkpoint notes, parts list, and architecture notes
-- `firmware/` - Arduino code and future game logic
-- `hardware/` - CAD files, electronics notes, wiring ideas, and part references
-
 ## Firmware Status
 Current firmware includes:
 - `WAITING`, `PLAYING`, `GAME_OVER` states
@@ -30,9 +25,26 @@ Current firmware includes:
 - score tracking
 - placeholder basket input using Serial Monitor
 
+## Current Hardware / Parts Status
+Current planned parts include:
+- ESP32
+- IR sensor module
+- resistor pack
+- 5V to 3.3V logic shifter
+- audio amplifier converter
+- breadboards and jumper wires
+- servo motors
+- mini basketballs
+- plywood
+- assorted bolts, nuts, washers
+- T nuts
+- timing belt
+- linear rails
+
+
 ## Next Steps
-- finish CAD model
-- finalize parts list
+- finalize and purchase components
+- continue CAD development for backboard, hoop mount, and moving mechanism- finalize parts list
 - buy electronics
 - replace Serial basket simulation with IR sensor input
 - add display output
