@@ -86,6 +86,9 @@ void setup()
 
   reset_game();
   show_waiting_screen();
+
+  // initializing the 6 motors and giving it default values for both the hoops
+  initAllMotors()
 }
 
 
@@ -153,6 +156,9 @@ void handle_playing_state()
 {
   unsigned long now = millis();
   unsigned long elapsed = now - game_start_time;
+
+  // added this function call to make the motors move depending on how many players are playing
+  updateHoopPhysics(state, p2_joined);
 
   if (p1_score_detected())
   {
