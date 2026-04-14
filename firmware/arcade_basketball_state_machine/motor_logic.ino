@@ -13,13 +13,13 @@
 #define H2_X_STEP 32
 #define H2_X_DIR  33
 #define H2_Y_LEFT_STEP 19
-#define H2_Y_LEFT_DIR  21
-#define H2_Y_RIGHT_STEP 22
-#define H2_Y_RIGHT_DIR  23
+#define H2_Y_LEFT_DIR  23
+#define H2_Y_RIGHT_STEP 2
+#define H2_Y_RIGHT_DIR  15
 
 // --- Safety Limit Switches ---
-#define H1_LIMIT_PIN 13 
-#define H2_LIMIT_PIN 15
+#define H1_LIMIT_PIN 36
+#define H2_LIMIT_PIN 39
 
 // Initializing all 6 Steppers
 AccelStepper h1X(1, H1_X_STEP, H1_X_DIR);
