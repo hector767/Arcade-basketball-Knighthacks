@@ -3,11 +3,14 @@
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
-const int P1_BUTTON_PIN = 18;
-const int P2_BUTTON_PIN = 19;
+const int P1_BUTTON_PIN = 34;
+const int P2_BUTTON_PIN = 35;
 
-const int P1_SCORE_PIN = 32;
-const int P2_SCORE_PIN = 33;
+const int P1_SCORE_PIN = 36;
+const int P2_SCORE_PIN = 39;
+
+const int P1_XSHUT_PIN = 4;
+const int P2_XSHUT_PIN = 5;
 
 const unsigned long GAME_DURATION_MS = 30000;
 const unsigned long DEBOUNCE_MS = 60;
