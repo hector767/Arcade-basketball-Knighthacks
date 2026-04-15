@@ -1,13 +1,17 @@
 #include <Wire.h>
 #include <LiquidCrystal_I2C.h>
+#include <Adafruit_VL53L0X.h>
 
 LiquidCrystal_I2C lcd(0x27, 20, 4);
 
-const int P1_BUTTON_PIN = 18;
-const int P2_BUTTON_PIN = 19;
+Adafruit_VL53L0X tof1;
+Adafruit_VL53L0X tof2;
 
-const int P1_SCORE_PIN = 32;
-const int P2_SCORE_PIN = 33;
+const int P1_BUTTON_PIN = 34;
+const int P2_BUTTON_PIN = 35;
+
+const int P1_XSHUT_PIN = 4;
+const int P2_XSHUT_PIN = 5;
 
 const unsigned long GAME_DURATION_MS = 30000;
 const unsigned long DEBOUNCE_MS = 60;
@@ -29,26 +33,29 @@ int p1_score = 0;
 int p2_score = 0;
 
 unsigned long game_start_time = 0;
+unsigned long last_p1_score_ms = 0;
+unsigned long last_p2_score_ms = 0;
+
+const unsigned long SCORE_COOLDOWN_MS = 400;
+const int P1_SCORE_THRESHOLD_MM = 200;
+const int P2_SCORE_THRESHOLD_MM = 200;
 
 bool last_p1_button_reading = HIGH;
 bool last_p2_button_reading = HIGH;
-bool last_p1_score_reading = HIGH;
-bool last_p2_score_reading = HIGH;
+
 
 bool p1_button_state = HIGH;
 bool p2_button_state = HIGH;
-bool p1_score_state = HIGH;
-bool p2_score_state = HIGH;
+
 
 unsigned long last_p1_button_time = 0;
 unsigned long last_p2_button_time = 0;
-unsigned long last_p1_score_time = 0;
-unsigned long last_p2_score_time = 0;
+
 
 bool p1_button_pressed();
 bool p2_button_pressed();
-bool p1_score_detected();
-bool p2_score_detected();
+bool p1_scored_from_tof();
+bool p2_scored_from_tof();
 
 bool check_press(int pin,
                  bool &last_reading,
@@ -79,16 +86,31 @@ void setup()
   pinMode(P1_BUTTON_PIN, INPUT_PULLUP);
   pinMode(P2_BUTTON_PIN, INPUT_PULLUP);
 
-  pinMode(P1_SCORE_PIN, INPUT_PULLUP);
-  pinMode(P2_SCORE_PIN, INPUT_PULLUP);
+    Serial.begin(115200);
 
-  Serial.begin(115200);
+  pinMode(P1_XSHUT_PIN, OUTPUT);
+  pinMode(P2_XSHUT_PIN, OUTPUT);
+
+  digitalWrite(P1_XSHUT_PIN, LOW);
+  digitalWrite(P2_XSHUT_PIN, LOW);
+  delay(10);
+
+  digitalWrite(P1_XSHUT_PIN, HIGH);
+  delay(10);
+  if (!tof1.begin(0x30)) {
+    Serial.println("Failed to boot P1 ToF");
+  }
+
+  digitalWrite(P2_XSHUT_PIN, HIGH);
+  delay(10);
+  if (!tof2.begin(0x31)) {
+    Serial.println("Failed to boot P2 ToF");
+  }
 
   reset_game();
   show_waiting_screen();
 
-  // initializing the 6 motors and giving it default values for both the hoops
-  initAllMotors()
+  initAllMotors();
 }
 
 
@@ -160,17 +182,19 @@ void handle_playing_state()
   // added this function call to make the motors move depending on how many players are playing
   updateHoopPhysics(state, p2_joined);
 
-  if (p1_score_detected())
+    if (p1_scored_from_tof() && millis() - last_p1_score_ms > SCORE_COOLDOWN_MS)
   {
     p1_score++;
+    last_p1_score_ms = millis();
     Serial.print("P1 SCORE: ");
     Serial.println(p1_score);
     show_playing_screen();
   }
 
-  if (p2_joined && p2_score_detected())
+  if (p2_joined && p2_scored_from_tof() && millis() - last_p2_score_ms > SCORE_COOLDOWN_MS)
   {
     p2_score++;
+    last_p2_score_ms = millis();
     Serial.print("P2 SCORE: ");
     Serial.println(p2_score);
     show_playing_screen();
@@ -185,6 +209,9 @@ void handle_playing_state()
 
   if (elapsed >= GAME_DURATION_MS)
   {
+    if (p1_score > high_score) high_score = p1_score;
+    if (p2_score > high_score) high_score = p2_score;
+
     state = RESULTS;
     show_results_screen();
   }
@@ -194,8 +221,9 @@ void handle_playing_state()
 // start_game(); Resets scores, records the start time, switches the state to PLAYING, and updates the display to begin a new game.
 void start_game()
 {
-  p1_score = 0;
-  p2_score = 0;
+  int p1_score = 0;
+  int p2_score = 0;
+  int high_score = 0;
   game_start_time = millis();
   state = PLAYING;
   show_playing_screen();
@@ -216,7 +244,6 @@ void reset_game()
 }
 
 
-// show_waiting_screen(); Displays the idle screen prompting the user to press the button to begin.
 void show_waiting_screen()
 {
   lcd.clear();
@@ -229,8 +256,11 @@ void show_waiting_screen()
 
   lcd.setCursor(0, 2);
   lcd.print("Waiting...");
-}
 
+  lcd.setCursor(0, 3);
+  lcd.print("Daily High: ");
+  lcd.print(high_score);
+}
 
 // show_player_select_screen(); Displays player selection info and reflects whether Player 2 is active, guiding the user to start the game.
 void show_player_select_screen()
@@ -392,22 +422,20 @@ bool p2_button_pressed()
                      last_p2_button_time);
 }
 
-
-// p1_score_detected(); Detects a scoring event for Player 1 using the debounced input mechanism.
-bool p1_score_detected()
+bool p1_scored_from_tof()
 {
-  return check_press(P1_SCORE_PIN,
-                     last_p1_score_reading,
-                     p1_score_state,
-                     last_p1_score_time);
+  VL53L0X_RangingMeasurementData_t measure;
+  tof1.rangingTest(&measure, false);
+
+  return (measure.RangeStatus != 4 &&
+          measure.RangeMilliMeter < P1_SCORE_THRESHOLD_MM);
 }
 
-
-// p2_score_detected(); Detects a scoring event for Player 2 using the debounced input mechanism.
-bool p2_score_detected()
+bool p2_scored_from_tof()
 {
-  return check_press(P2_SCORE_PIN,
-                     last_p2_score_reading,
-                     p2_score_state,
-                     last_p2_score_time);
+  VL53L0X_RangingMeasurementData_t measure;
+  tof2.rangingTest(&measure, false);
+
+  return (measure.RangeStatus != 4 &&
+          measure.RangeMilliMeter < P2_SCORE_THRESHOLD_MM);
 }
